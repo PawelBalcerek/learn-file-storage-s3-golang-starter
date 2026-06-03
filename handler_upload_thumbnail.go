@@ -2,19 +2,18 @@ package main
 
 import (
 	"database/sql"
-	"encoding/base64"
 	"errors"
-	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"os"
 
 	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/auth"
 	"github.com/google/uuid"
 )
 
 func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Request) {
-	videoIDString := r.PathValue("videoID")
-	videoID, err := uuid.Parse(videoIDString)
+	videoID, err := uuid.Parse(r.PathValue("videoID"))
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, "Invalid ID", err)
 		return
@@ -32,24 +31,16 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	fmt.Println("uploading thumbnail for video", videoID, "by user", userID)
+	log.Printf("uploading thumbnail for video %s by user %s", videoID, userID)
 
 	const maxMemory = 10 << 20
 	r.ParseMultipartForm(maxMemory)
-	file, header, err := r.FormFile("thumbnail")
+	formFile, fileHeader, err := r.FormFile("thumbnail")
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, "Unable to parse form file", err)
 		return
 	}
-	defer file.Close()
-
-	mediaType := header.Header.Get("Content-Type")
-
-	data, err := io.ReadAll(file)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to read file", err)
-		return
-	}
+	defer formFile.Close()
 
 	video, err := cfg.db.GetVideo(videoID)
 	if err != nil {
@@ -66,15 +57,30 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	thumbnailDataB64 := base64.StdEncoding.EncodeToString(data)
-	video.ThumbnailURL = ptr(fmt.Sprintf("data:%s;base64,%s", mediaType, thumbnailDataB64))
+	mediaType := fileHeader.Header.Get("Content-Type")
+	assetPath, err := assetPath(videoID, mediaType)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve asset path", err)
+		return
+	}
+
+	file, err := os.Create(cfg.assetsPath(assetPath))
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to create file", err)
+		return
+	}
+	defer file.Close()
+
+	if _, err := io.Copy(file, formFile); err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to copy file from form file", err)
+		return
+	}
+
+	video.ThumbnailURL = cfg.assetURL(assetPath)
 	if err := cfg.db.UpdateVideo(video); err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to update video", err)
+		return
 	}
 
 	respondWithJSON(w, http.StatusOK, video)
-}
-
-func ptr[T any](v T) *T {
-	return &v
 }
