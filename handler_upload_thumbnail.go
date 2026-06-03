@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log"
+	"mime"
 	"net/http"
 	"os"
 
@@ -42,6 +43,17 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 	}
 	defer formFile.Close()
 
+	mediaType, _, err := mime.ParseMediaType(fileHeader.Header.Get("Content-Type"))
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Failed to parse file media type", err)
+		return
+	}
+
+	if mediaType != "image/jpeg" && mediaType != "image/png" {
+		respondWithError(w, http.StatusBadRequest, "Invalid media type", nil)
+		return
+	}
+
 	video, err := cfg.db.GetVideo(videoID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -57,7 +69,6 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	mediaType := fileHeader.Header.Get("Content-Type")
 	assetPath, err := assetPath(videoID, mediaType)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve asset path", err)
