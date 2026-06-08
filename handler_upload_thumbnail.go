@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto/rand"
 	"database/sql"
+	"encoding/base64"
 	"errors"
 	"io"
 	"log"
@@ -69,7 +71,14 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	assetPath, err := assetPath(videoID, mediaType)
+	randomBytes := make([]byte, 32)
+	if _, err := rand.Read(randomBytes); err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to generate random bytes", err)
+		return
+	}
+
+	fileName := base64.RawURLEncoding.EncodeToString(randomBytes)
+	assetPath, err := assetPath(fileName, mediaType)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve asset path", err)
 		return

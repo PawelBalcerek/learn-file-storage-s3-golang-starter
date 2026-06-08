@@ -5,11 +5,9 @@ import (
 	"mime"
 	"os"
 	"path/filepath"
-
-	"github.com/google/uuid"
 )
 
-func assetPath(videoId uuid.UUID, mediaType string) (string, error) {
+func assetPath(videoId string, mediaType string) (string, error) {
 	extensions, err := mime.ExtensionsByType(mediaType)
 	if err != nil {
 		return "", err
