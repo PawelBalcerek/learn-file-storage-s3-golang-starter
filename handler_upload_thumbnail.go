@@ -1,9 +1,7 @@
 package main
 
 import (
-	"crypto/rand"
 	"database/sql"
-	"encoding/base64"
 	"errors"
 	"io"
 	"log"
@@ -71,20 +69,13 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	randomBytes := make([]byte, 32)
-	if _, err := rand.Read(randomBytes); err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to generate random bytes", err)
-		return
-	}
-
-	fileName := base64.RawURLEncoding.EncodeToString(randomBytes)
-	assetPath, err := assetPath(fileName, mediaType)
+	fileName, err := assetFileName(mediaType)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve asset path", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to generate asset file name", err)
 		return
 	}
 
-	file, err := os.Create(cfg.assetsPath(assetPath))
+	file, err := os.Create(cfg.assetPath(fileName))
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to create file", err)
 		return
@@ -96,7 +87,7 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	video.ThumbnailURL = cfg.assetURL(assetPath)
+	video.ThumbnailURL = cfg.assetURL(fileName)
 	if err := cfg.db.UpdateVideo(video); err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to update video", err)
 		return
