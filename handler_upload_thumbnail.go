@@ -87,7 +87,7 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	video.ThumbnailURL = cfg.assetURL(fileName)
+	video.ThumbnailURL = cfg.localAssetURL(fileName)
 	if err := cfg.db.UpdateVideo(video); err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to update video", err)
 		return

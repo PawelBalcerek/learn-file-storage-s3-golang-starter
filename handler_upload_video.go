@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"io"
 	"mime"
 	"net/http"
@@ -88,10 +89,18 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	fileNamePrefix, err := videoAssetPrefix(tmpFile.Name())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve video asset prefix", err)
+		return
+	}
+
+	key := fmt.Sprintf("%s%s", fileNamePrefix, fileName)
+
 	if _, err := cfg.s3Client.PutObject(
 		r.Context(), &s3.PutObjectInput{
 			Bucket:      aws.String(cfg.s3Bucket),
-			Key:         aws.String(fileName),
+			Key:         aws.String(key),
 			Body:        tmpFile,
 			ContentType: aws.String(mediaType),
 		},
@@ -100,7 +109,7 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	video.VideoURL = cfg.assetS3URL(fileName)
+	video.VideoURL = cfg.s3AssetURL(key)
 
 	if err := cfg.db.UpdateVideo(video); err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to update video", err)
