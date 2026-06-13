@@ -66,6 +66,21 @@ func videoAssetPrefix(filePath string) (string, error) {
 	}
 }
 
+func processVideoAssetForFastStart(filePath string) (string, error) {
+	outFilePath := fmt.Sprintf("%s.processing", filePath)
+	if err := exec.Command(
+		"ffmpeg",
+		"-i", filePath,
+		"-c", "copy",
+		"-movflags", "faststart",
+		"-f", "mp4",
+		outFilePath,
+	).Run(); err != nil {
+		return "", fmt.Errorf("failed to run ffmpeg command: %w", err)
+	}
+	return outFilePath, nil
+}
+
 func (cfg apiConfig) ensureAssetsDir() error {
 	if _, err := os.Stat(cfg.assetsRoot); os.IsNotExist(err) {
 		return os.Mkdir(cfg.assetsRoot, 0o755)

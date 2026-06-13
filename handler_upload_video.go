@@ -83,6 +83,20 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 	}
 	tmpFile.Seek(0, io.SeekStart)
 
+	processedVideoFileName, err := processVideoAssetForFastStart(tmpFile.Name())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to process video for fast start", err)
+		return
+	}
+	defer os.Remove(processedVideoFileName)
+
+	processedVideo, err := os.Open(processedVideoFileName)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to open processed video", err)
+		return
+	}
+	defer processedVideo.Close()
+
 	fileName, err := assetFileName(mediaType)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to generate asset file name", err)
@@ -101,7 +115,7 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		r.Context(), &s3.PutObjectInput{
 			Bucket:      aws.String(cfg.s3Bucket),
 			Key:         aws.String(key),
-			Body:        tmpFile,
+			Body:        processedVideo,
 			ContentType: aws.String(mediaType),
 		},
 	); err != nil {
